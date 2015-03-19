@@ -1,0 +1,139 @@
+</head>
+
+<body>
+<h1><b>Practical Machine Learning Class </b></h1>
+<h2><b><i>Project Write-up</b></i></h2>
+
+<p><b>Background</b><p>
+
+<p>Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). </p>
+
+<p><b>Objective</b><p>
+
+<p>The goal of the project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. The report will describe how the model is being built, cross validation and the expected sample error. We will explain the choices as well and use a prediction model to predict 20 different test cases.</p> 
+
+
+<p>After examing the data using Rattle GUI, there are alot of missing values(NA).Hence, we should try to remove them first.</p>
+
+<pre><code class="r">library(caret)
+
+# Load the training data set
+trainingAll <- read.csv("pml-training.csv",na.strings=c("NA",""))
+
+# Discard NAs
+NAs <- apply(trainingAll, 2, function(x) { sum(is.na(x)) })
+trainingValid <- trainingAll[, which(NAs == 0)]
+
+</code></pre>
+
+<p>This resulted in 60 columns (variables), instead of 160. After removing the missing values, we create a subset of training data. This is because the whole set contained 19622 rows (observations) from the HAR study. As we are going to use the Random Forest algorithm, we will take only 20% of the HAR data set as sample. Moreover, after creating this subset, I also removed the columns related to timestamps, the X column, user_name, and new_window because they were not sensor values, so I thought they would not help much (or at all) for prediction:</p>
+
+<pre><code class="r">
+# Create a subset of trainingValid data set
+trainIndex <- createDataPartition(y = trainingValid$classe, p=0.2,list=FALSE)
+trainData <- trainingValid[trainIndex,]
+
+# Remove useless predictors
+removeIndex <- grep("timestamp|X|user_name|new_window", names(trainData))
+trainData <- trainData[, -removeIndex]
+</code></pre>
+
+<p>As a result, I had a subset of HAR data set that had only 3927 rows of of 54 variables. We will be using 4-fold cross validation. After setting the trainControl, we will use the Random Forests algorithm in the following manner:</p>
+
+<pre><code class="r">
+# Configure the train control for cross-validation
+tc = trainControl(method = "cv", number = 4)
+
+# Fit the model using Random Forests algorithm
+modFit <- train(trainData$classe ~.,
+                data = trainData,
+                method="rf",
+                trControl = tc,
+                prox = TRUE,
+                allowParallel = TRUE)
+</code></pre>
+
+<pre><code>
+## Loading required package: randomForest
+## randomForest 4.6-7
+## Type rfNews() to see new features/changes/bug fixes.
+</code></pre>
+
+<pre><code>
+print(modFit)
+</code></pre>
+
+<pre><code>
+## Random Forest
+##
+## 3927 samples
+##   53 predictors
+##    5 classes: 'A', 'B', 'C', 'D', 'E'
+##
+## No pre-processing
+## Resampling: Cross-Validated (4 fold)
+##
+## Summary of sample sizes: 2946, 2944, 2945, 2946
+##
+## Resampling results across tuning parameters:
+##
+##   mtry  Accuracy  Kappa  Accuracy SD  Kappa SD
+##   2     1         1      0.004        0.005
+##   30    1         1      0.004        0.005
+##   50    1         1      0.005        0.007
+##
+## Accuracy was used to select the optimal model using  the largest value.
+## The final value used for the model was mtry = 27.
+</code></pre>
+
+<pre><code class="r">
+print(modFit$finalModel)
+</code></pre>
+
+<pre><code>## 
+##
+## Call:
+##  randomForest(x = x, y = y, mtry = param$mtry, proximity = TRUE,      allowParallel = TRUE)
+##                Type of random forest: classification
+##                      Number of trees: 500
+## No. of variables tried at each split: 27
+##
+##         OOB estimate of  error rate: 1.55%
+## Confusion matrix:
+##      A   B   C   D   E class.error
+## A 1116   0   0   0   0     0.00000
+## B   10 739  11   0   0     0.02763
+## C    0  13 669   2   1     0.02336
+## D    1   1   9 631   2     0.02019
+## E    0   5   0   6 711     0.01524
+</code></pre>
+
+<p>After having fit the model with training data, We have used it for predictions on test data. We also applied the same removal of columns to the test data</p>
+
+<pre><code class="r">
+# Load test data
+testingAll = read.csv("pml-testing.csv",na.strings=c("NA",""))
+
+# Only take the columns of testingAll that are also in trainData
+testing <- testingAll[ , which(names(testingAll) %in% names(trainData))]
+
+# Run the prediction
+pred <- predict(modFit, newdata = testing)
+
+# Utility function provided by the instructor
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(pred)
+</code></pre>
+
+<p>The model performed predictions very accurately. It predicted 20 cases out of 20. This leads to some questions such as 1. Can we have similar accuracy even when data is reduced? 2. Are some sensor values correlated and therefore can they be left out of training 3. would another training method (such as SVM) be faster and accurate.</p>
+
+</body>
+
+</html>
